@@ -17,13 +17,14 @@ func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 	defer close(ch)
 	var num int64
 	num = 1
+loop:
 	for {
 		select {
 		case ch <- num:
 			fn(num)
 			num++
 		case <-ctx.Done():
-			return
+			break loop
 		}
 	}
 }
@@ -31,8 +32,8 @@ func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 // Worker читает число из канала in и пишет его в канал out.
 func Worker(in <-chan int64, out chan<- int64) {
 	// 2. Функция Worker
+	defer close(out)
 	for {
-		defer close(out)
 		num, ok := <-in
 		if !ok {
 			return
@@ -79,20 +80,16 @@ func main() {
 	var wg sync.WaitGroup
 
 	// 4. Собираем числа из каналов outs
-	for i := 0; i < NumOut; i++ {
+	for i, ch := range outs {
 		wg.Add(1)
 
-		go func(ch <-chan int64, j int) {
+		go func() {
 			defer wg.Done()
-			for j, ch := range outs {
-				num, ok := <-ch
-				if !ok {
-					return
-				}
+			for num := range ch {
 				chOut <- num
-				amounts[j]++
+				amounts[i]++
 			}
-		}(outs[i], i)
+		}()
 	}
 
 	go func() {
