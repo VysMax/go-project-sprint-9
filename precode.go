@@ -15,16 +15,14 @@ import (
 func Generator(ctx context.Context, ch chan<- int64, fn func(int64)) {
 	// 1. Функция Generator
 	defer close(ch)
-	var num int64
-	num = 1
-loop:
+	var num int64 = 1
 	for {
 		select {
 		case ch <- num:
 			fn(num)
 			num++
 		case <-ctx.Done():
-			break loop
+			return
 		}
 	}
 }
@@ -83,13 +81,13 @@ func main() {
 	for i, ch := range outs {
 		wg.Add(1)
 
-		go func() {
+		go func(i int, ch <-chan int64) {
 			defer wg.Done()
 			for num := range ch {
 				chOut <- num
 				amounts[i]++
 			}
-		}()
+		}(i, ch)
 	}
 
 	go func() {
